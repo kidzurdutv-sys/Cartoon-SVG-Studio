@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStudioStore } from '../store/studioStore';
-import { generateCartoonSVG, generateEnvironmentSVG, generatePropSVG } from '../services/geminiService';
+import { generateCartoonSVG, generateEnvironmentSVG, generatePropSVG } from '../services/localAIService';
 import { STYLE_PRESETS, getStylePromptModifier } from '../engine/countryTokens';
 import { autoRigCharacter, validateRig } from '../engine/characterRig';
 import { createProp } from '../engine/propRig';
