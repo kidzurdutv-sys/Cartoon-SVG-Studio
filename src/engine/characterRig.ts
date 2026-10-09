@@ -1,106 +1,165 @@
 import { type CountryConfig } from './countryTokens';
+import { mulberry32, pick, range } from './rng';
 
-export const generateCharacterRig = (country: CountryConfig, pose: string): string => {
-  // Simple offset based on pose to illustrate flexibility
-  const isProfile = pose === 'profile';
-  const is34 = pose === '3/4';
+// Parse 'stroke-width="2" stroke="#1b451d"' -> { width, color }
+function parseOutline(style: string): { width: number; color: string } {
+	const w = /stroke-width="([\d.]+)"/.exec(style);
+	const c = /stroke="([^"]+)"/.exec(style);
+	return {
+		width: w ? parseFloat(w[1]) : 2,
+		color: c ? c[1] : '#1a1a1a',
+	};
+}
 
-  const faceOffsetX = isProfile ? 20 : (is34 ? 10 : 0);
+const HAIR_COLORS = ['#1a1a1a', '#2d1b0e', '#4a2c14', '#5c3a21', '#3b2f2f'];
+const EYE_COLORS = ['#1a1a1a', '#2d1b0e', '#4a2c14'];
 
-  return `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 800" width="100%" height="100%">
-  <defs>
-    <!-- Lip-Sync Visemes Definitions -->
-    <g id="viseme-rest">
-      <path d="M -15 0 Q 0 5 15 0" stroke="#333" stroke-width="3" fill="none" />
-    </g>
-    <g id="viseme-A">
-      <path d="M -15 0 Q 0 20 15 0 Q 0 25 -15 0" fill="#222" />
-    </g>
-    <g id="viseme-E">
-      <path d="M -20 -2 Q 0 2 20 -2 Q 0 8 -20 -2" fill="#222" />
-      <path d="M -15 -2 L 15 -2" stroke="#fff" stroke-width="2" />
-    </g>
-    <g id="viseme-O">
-      <circle cx="0" cy="5" r="8" fill="#222" />
-    </g>
+export const generateCharacterRig = (
+	country: CountryConfig,
+	pose: string,
+	seed: number,
+): string => {
+	const rand = mulberry32(seed);
+	const { width: sw, color: sc } = parseOutline(country.outlineStyle);
+	const stroke = `stroke="${sc}" stroke-width="${sw}"`;
 
-    <!-- Eyes Definitions -->
-    <g id="eye-open">
-      <circle cx="0" cy="0" r="10" fill="#fff" />
-      <circle cx="0" cy="0" r="4" fill="#333" />
-    </g>
-    <g id="eye-half">
-      <path d="M -10 0 A 10 10 0 0 1 10 0 Z" fill="#fff" />
-      <circle cx="0" cy="0" r="4" fill="#333" clip-path="url(#half-lid-clip)" />
-    </g>
-    <g id="eye-blink">
-      <path d="M -10 0 L 10 0" stroke="#333" stroke-width="3" fill="none" />
-    </g>
-  </defs>
+	const isProfile = pose === 'profile';
+	const is34 = pose === '3/4';
+	const faceDX = isProfile ? 22 : is34 ? 10 : 0;
 
-  <g id="root" data-joint="hip" transform="translate(250, 450)" data-transform-origin="250 450">
+	// Seeded body variations
+	const headRX = range(rand, 62, 78);
+	const headRY = range(rand, 70, 86);
+	const hairStyle = Math.floor(rand() * 6);
+	const hairColor = pick(rand, HAIR_COLORS);
+	const eyeStyle = Math.floor(rand() * 3);
+	const eyeColor = pick(rand, EYE_COLORS);
+	const eyeSize = range(rand, 11, 15);
+	const browStyle = Math.floor(rand() * 2);
+	const shirtStriped = rand() > 0.5;
+	const skin = country.skinTone;
+	const shirt = country.clothingColor1;
+	const pants = country.clothingColor2;
 
-    <!-- Legs (simplified for rig structure) -->
-    <g id="left-leg" data-joint="left-hip" transform="translate(-30, 100)" data-transform-origin="220 550">
-      <rect x="-15" y="0" width="30" height="150" fill="${country.clothingColor2}" rx="5" ${country.outlineStyle} />
-    </g>
-    <g id="right-leg" data-joint="right-hip" transform="translate(30, 100)" data-transform-origin="280 550">
-      <rect x="-15" y="0" width="30" height="150" fill="${country.clothingColor2}" rx="5" ${country.outlineStyle} />
-    </g>
+	const cx = 200;
+	const headCY = 175;
 
-    <!-- Torso -->
-    <g id="torso" data-joint="chest" transform="translate(0, -100)" data-transform-origin="250 350">
-      <path d="M -50 -100 L 50 -100 L 40 100 L -40 100 Z" fill="${country.clothingColor1}" ${country.outlineStyle} />
+	// ---- Hair variants (drawn behind + over head) ----
+	const hairBack: string[] = [];
+	const hairFront: string[] = [];
+	const ht = headCY - headRY; // head top
+	if (hairStyle === 0) {
+		// Buzz cut — simple cap arc
+		hairFront.push(`<path d="M ${cx - headRX} ${headCY - 10} Q ${cx} ${ht - 25} ${cx + headRX} ${headCY - 10} L ${cx + headRX} ${headCY - 30} Q ${cx} ${ht - 45} ${cx - headRX} ${headCY - 30} Z" fill="${hairColor}" ${stroke}/>`);
+	} else if (hairStyle === 1) {
+		// Spiky
+		let spikes = '';
+		for (let i = 0; i < 7; i++) {
+			const x = cx - headRX + (i * (headRX * 2)) / 6;
+			const h = 22 + rand() * 18;
+			spikes += `L ${x + 8} ${ht - h} L ${x + 16} ${ht - 5} `;
+		}
+		hairFront.push(`<path d="M ${cx - headRX} ${ht + 10} ${spikes} L ${cx + headRX} ${ht + 10} Q ${cx} ${ht - 20} ${cx - headRX} ${ht + 10} Z" fill="${hairColor}" ${stroke}/>`);
+	} else if (hairStyle === 2) {
+		// Curly puffs
+		for (let i = 0; i < 8; i++) {
+			const x = cx - headRX + 8 + (i * (headRX * 2 - 16)) / 7;
+			const y = ht + 2 - (i % 2) * 10;
+			hairBack.push(`<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="20" fill="${hairColor}" ${stroke}/>`);
+		}
+	} else if (hairStyle === 3) {
+		// Side part sweep
+		hairFront.push(`<path d="M ${cx - headRX} ${headCY - 15} Q ${cx - 10} ${ht - 30} ${cx + headRX} ${headCY - 25} L ${cx + headRX} ${headCY - 5} Q ${cx + 20} ${ht + 5} ${cx - 20} ${ht + 12} Q ${cx - headRX} ${ht + 5} ${cx - headRX} ${headCY - 15} Z" fill="${hairColor}" ${stroke}/>`);
+	} else if (hairStyle === 4) {
+		// Top bun
+		hairBack.push(`<circle cx="${cx}" cy="${ht - 22}" r="24" fill="${hairColor}" ${stroke}/>`);
+		hairFront.push(`<path d="M ${cx - headRX} ${headCY - 12} Q ${cx} ${ht - 22} ${cx + headRX} ${headCY - 12} L ${cx + headRX} ${headCY - 32} Q ${cx} ${ht - 42} ${cx - headRX} ${headCY - 32} Z" fill="${hairColor}" ${stroke}/>`);
+	} else {
+		// Long hair frame
+		hairBack.push(`<path d="M ${cx - headRX - 6} ${ht} Q ${cx - headRX - 14} ${headCY + 90} ${cx - headRX + 6} ${headCY + 110} L ${cx - headRX + 26} ${headCY + 110} Q ${cx - headRX + 18} ${headCY + 40} ${cx - headRX + 10} ${ht + 12} Z" fill="${hairColor}" ${stroke}/>`);
+		hairBack.push(`<path d="M ${cx + headRX + 6} ${ht} Q ${cx + headRX + 14} ${headCY + 90} ${cx + headRX - 6} ${headCY + 110} L ${cx + headRX - 26} ${headCY + 110} Q ${cx + headRX - 18} ${headCY + 40} ${cx + headRX - 10} ${ht + 12} Z" fill="${hairColor}" ${stroke}/>`);
+		hairFront.push(`<path d="M ${cx - headRX} ${headCY - 10} Q ${cx} ${ht - 28} ${cx + headRX} ${headCY - 10} L ${cx + headRX} ${headCY - 30} Q ${cx} ${ht - 48} ${cx - headRX} ${headCY - 30} Z" fill="${hairColor}" ${stroke}/>`);
+	}
 
-      <!-- Left Arm Chain -->
-      <g id="left-arm" data-joint="left-shoulder" transform="translate(-55, -80)" data-transform-origin="195 270">
-        <rect x="-20" y="0" width="40" height="100" fill="${country.clothingColor1}" rx="10" ${country.outlineStyle} />
-        <g id="left-forearm" data-joint="left-elbow" transform="translate(0, 90)" data-transform-origin="195 360">
-          <rect x="-15" y="0" width="30" height="90" fill="${country.skinTone}" rx="15" ${country.outlineStyle} />
-          <g id="left-hand" data-joint="left-wrist" transform="translate(0, 80)" data-transform-origin="195 440">
-            <circle cx="0" cy="15" r="20" fill="${country.skinTone}" ${country.outlineStyle} />
-          </g>
-        </g>
-      </g>
+	// ---- Eyes ----
+	const eyeY = headCY - 5;
+	const eyeDX = 30;
+	const eyeSVG = (ex: number): string => {
+		if (eyeStyle === 0) {
+			return `<g><circle cx="${ex}" cy="${eyeY}" r="${eyeSize}" fill="white" ${stroke}/><circle cx="${ex + 3}" cy="${eyeY + 2}" r="${eyeSize * 0.45}" fill="${eyeColor}"/><circle cx="${ex + 6}" cy="${eyeY - 2}" r="${eyeSize * 0.16}" fill="white"/></g>`;
+		} else if (eyeStyle === 1) {
+			return `<g><ellipse cx="${ex}" cy="${eyeY}" rx="${eyeSize * 0.8}" ry="${eyeSize * 1.15}" fill="white" ${stroke}/><circle cx="${ex + 2}" cy="${eyeY + 3}" r="${eyeSize * 0.4}" fill="${eyeColor}"/><circle cx="${ex + 5}" cy="${eyeY - 1}" r="${eyeSize * 0.15}" fill="white"/></g>`;
+		}
+		return `<g><circle cx="${ex}" cy="${eyeY}" r="${eyeSize * 1.25}" fill="white" ${stroke}/><circle cx="${ex + 3}" cy="${eyeY + 2}" r="${eyeSize * 0.55}" fill="${eyeColor}"/><circle cx="${ex + 7}" cy="${eyeY - 3}" r="${eyeSize * 0.2}" fill="white"/></g>`;
+	};
 
-      <!-- Right Arm Chain -->
-      <g id="right-arm" data-joint="right-shoulder" transform="translate(55, -80)" data-transform-origin="305 270">
-        <rect x="-20" y="0" width="40" height="100" fill="${country.clothingColor1}" rx="10" ${country.outlineStyle} />
-        <g id="right-forearm" data-joint="right-elbow" transform="translate(0, 90)" data-transform-origin="305 360">
-          <rect x="-15" y="0" width="30" height="90" fill="${country.skinTone}" rx="15" ${country.outlineStyle} />
-          <g id="right-hand" data-joint="right-wrist" transform="translate(0, 80)" data-transform-origin="305 440">
-            <circle cx="0" cy="15" r="20" fill="${country.skinTone}" ${country.outlineStyle} />
-          </g>
-        </g>
-      </g>
+	const eyesInner = isProfile
+		? eyeSVG(cx + 12)
+		: eyeSVG(cx - eyeDX) + eyeSVG(cx + eyeDX);
 
-      <!-- Neck and Head -->
-      <g id="neck" data-joint="neck" transform="translate(0, -100)" data-transform-origin="250 250">
-        <rect x="-15" y="-30" width="30" height="40" fill="${country.skinTone}" ${country.outlineStyle} />
+	// ---- Eyebrows ----
+	const browY = eyeY - eyeSize - 14;
+	const brow = (ex: number): string =>
+		browStyle === 0
+			? `<path d="M ${ex - 16} ${browY} Q ${ex} ${browY - 8} ${ex + 16} ${browY - 2}" fill="none" ${stroke} stroke-linecap="round"/>`
+			: `<rect x="${ex - 15}" y="${browY - 5}" width="30" height="7" rx="3.5" fill="${hairColor}" ${stroke}/>`;
+	const browsInner = isProfile ? brow(cx + 12) : brow(cx - eyeDX) + brow(cx + eyeDX);
 
-        <g id="head" data-joint="head-base" transform="translate(0, -60)" data-transform-origin="250 190">
-          <circle cx="0" cy="0" r="70" fill="${country.skinTone}" ${country.outlineStyle} />
+	// ---- Nose ----
+	const noseX = cx + faceDX * 0.4;
+	const nose = isProfile
+		? `<path d="M ${noseX + 8} ${headCY + 22} q 14 6 4 16 q -6 6 -14 2" fill="none" ${stroke} stroke-linecap="round"/>`
+		: `<path d="M ${noseX} ${headCY + 18} q -6 10 2 14" fill="none" ${stroke} stroke-linecap="round"/>`;
 
-          <!-- Facial Features Group offset by pose -->
-          <g id="face" transform="translate(${faceOffsetX}, 0)">
-            <!-- Eyes Group -->
-            <g id="eyes-group" transform="translate(0, -10)">
-              <use href="#eye-open" x="-25" y="0" />
-              <use href="#eye-open" x="${isProfile ? -25 : 25}" y="0" opacity="${isProfile ? 0 : 1}" />
-            </g>
+	// ---- Ears ----
+	const ears = isProfile
+		? ''
+		: `<circle cx="${cx - headRX}" cy="${headCY + 10}" r="14" fill="${skin}" ${stroke}/><circle cx="${cx + headRX}" cy="${headCY + 10}" r="14" fill="${skin}" ${stroke}/>`;
 
-            <!-- Mouth Phonemes Group -->
-            <g id="mouth-phonemes" transform="translate(0, 30)">
-              <!-- Render default rest state, others can be toggled via JS/CSS -->
-              <use href="#viseme-rest" x="0" y="0" />
-            </g>
-          </g>
+	// ---- Body ----
+	const neckY = headCY + headRY;
+	const shirtTop = neckY + 8;
+	const shirtBottom = 430;
+	const bodyW = 130;
+	const arms = `
+		<path d="M ${cx - bodyW / 2} ${shirtTop + 30} Q ${cx - bodyW / 2 - 34} ${shirtTop + 90} ${cx - bodyW / 2 - 26} ${shirtTop + 150}" fill="none" stroke="${skin}" stroke-width="26" stroke-linecap="round"/>
+		<path d="M ${cx + bodyW / 2} ${shirtTop + 30} Q ${cx + bodyW / 2 + 34} ${shirtTop + 90} ${cx + bodyW / 2 + 26} ${shirtTop + 150}" fill="none" stroke="${skin}" stroke-width="26" stroke-linecap="round"/>
+		<circle cx="${cx - bodyW / 2 - 26}" cy="${shirtTop + 152}" r="15" fill="${skin}" ${stroke}/>
+		<circle cx="${cx + bodyW / 2 + 26}" cy="${shirtTop + 152}" r="15" fill="${skin}" ${stroke}/>`;
+	const shirtFill = shirtStriped
+		? `<defs><pattern id="shirtstripes" width="18" height="18" patternUnits="userSpaceOnUse"><rect width="18" height="18" fill="${shirt}"/><rect width="9" height="18" fill="${pants}" opacity="0.55"/></pattern></defs>`
+		: '';
+	const shirtColor = shirtStriped ? 'url(#shirtstripes)' : shirt;
+	const torso = `
+		<path d="M ${cx - bodyW / 2} ${shirtTop} L ${cx + bodyW / 2} ${shirtTop} L ${cx + bodyW / 2 - 12} ${shirtBottom} L ${cx - bodyW / 2 + 12} ${shirtBottom} Z" fill="${shirtColor}" ${stroke}/>
+		<rect x="${cx - 16}" y="${neckY - 6}" width="32" height="26" rx="8" fill="${skin}" ${stroke}/>`;
+	const legs = `
+		<rect x="${cx - 52}" y="${shirtBottom - 6}" width="44" height="105" rx="14" fill="${pants}" ${stroke}/>
+		<rect x="${cx + 8}" y="${shirtBottom - 6}" width="44" height="105" rx="14" fill="${pants}" ${stroke}/>
+		<ellipse cx="${cx - 32}" cy="545" rx="30" ry="16" fill="#3a3a3a" ${stroke}/>
+		<ellipse cx="${cx + 32}" cy="545" rx="30" ry="16" fill="#3a3a3a" ${stroke}/>`;
 
-        </g>
-      </g>
-    </g>
-  </g>
-</svg>
-  `;
+	const mouthY = headCY + 62;
+
+	return `<svg viewBox="0 0 400 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cartoon character (${country.name}, ${pose} pose, seed ${seed})">
+<defs>
+<g id="viseme-rest"><path d="M -16 0 Q 0 7 16 0" fill="none" stroke="#5b2b2b" stroke-width="4" stroke-linecap="round"/></g>
+<g id="viseme-A"><ellipse cx="0" cy="2" rx="13" ry="17" fill="#7a2e2e" stroke="#5b2b2b" stroke-width="3"/></g>
+<g id="viseme-E"><ellipse cx="0" cy="0" rx="20" ry="7" fill="#7a2e2e" stroke="#5b2b2b" stroke-width="3"/></g>
+<g id="viseme-O"><ellipse cx="0" cy="2" rx="12" ry="14" fill="#7a2e2e" stroke="#5b2b2b" stroke-width="3"/></g>
+<g id="eye-blink"><path d="M -13 0 L 13 0" stroke="${sc}" stroke-width="5" stroke-linecap="round"/></g>
+${shirtFill}
+</defs>
+${hairBack.join('\n')}
+${legs}
+${arms}
+${torso}
+${ears}
+<ellipse cx="${cx}" cy="${headCY}" rx="${headRX.toFixed(0)}" ry="${headRY.toFixed(0)}" fill="${skin}" ${stroke}/>
+${hairFront.join('\n')}
+<g id="eyes-group" transform="translate(${faceDX},0)">${eyesInner}</g>
+<g transform="translate(${faceDX},0)">${browsInner}</g>
+<g transform="translate(${faceDX},0)">${nose}</g>
+<g id="mouth-phonemes" transform="translate(${cx + faceDX},${mouthY})"><use href="#viseme-rest" x="0" y="0"/></g>
+</svg>`;
 };
