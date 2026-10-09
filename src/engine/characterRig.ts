@@ -52,14 +52,24 @@ export const generateCharacterRig = (
 		// Buzz cut — simple cap arc
 		hairFront.push(`<path d="M ${cx - headRX} ${headCY - 10} Q ${cx} ${ht - 25} ${cx + headRX} ${headCY - 10} L ${cx + headRX} ${headCY - 30} Q ${cx} ${ht - 45} ${cx - headRX} ${headCY - 30} Z" fill="${hairColor}" ${stroke}/>`);
 	} else if (hairStyle === 1) {
-		// Spiky
-		let spikes = '';
-		for (let i = 0; i < 7; i++) {
-			const x = cx - headRX + (i * (headRX * 2)) / 6;
-			const h = 22 + rand() * 18;
-			spikes += `L ${x + 8} ${ht - h} L ${x + 16} ${ht - 5} `;
+		// Spiky — messy rounded tufts hugging the head curve (no floating crown)
+		const n = 7;
+		const yB = ht + 16;
+		let d = `M ${(cx - headRX).toFixed(0)} ${yB.toFixed(0)} `;
+		let px = cx - headRX;
+		for (let i = 0; i < n; i++) {
+			const segW = (headRX * 2) / n;
+			const x0 = px;
+			const lean = (rand() - 0.5) * 34;
+			const tipH = 22 + rand() * 26;
+			const xTip = x0 + segW * (0.3 + rand() * 0.4) + lean;
+			const x2 = x0 + segW * (0.85 + rand() * 0.3);
+			d += `Q ${x0.toFixed(0)} ${(yB - tipH * 0.5).toFixed(0)} ${xTip.toFixed(0)} ${(yB - tipH).toFixed(0)} `;
+			d += `Q ${(xTip + 10).toFixed(0)} ${(yB - tipH * 0.45).toFixed(0)} ${x2.toFixed(0)} ${yB.toFixed(0)} `;
+			px = x2;
 		}
-		hairFront.push(`<path d="M ${cx - headRX} ${ht + 10} ${spikes} L ${cx + headRX} ${ht + 10} Q ${cx} ${ht - 20} ${cx - headRX} ${ht + 10} Z" fill="${hairColor}" ${stroke}/>`);
+		d += `L ${(cx + headRX).toFixed(0)} ${(ht + 40).toFixed(0)} Q ${cx} ${(ht + 8).toFixed(0)} ${(cx - headRX).toFixed(0)} ${(ht + 40).toFixed(0)} Z`;
+		hairFront.push(`<path d="${d}" fill="${hairColor}" ${stroke}/>`);
 	} else if (hairStyle === 2) {
 		// Curly puffs
 		for (let i = 0; i < 8; i++) {
@@ -121,27 +131,42 @@ export const generateCharacterRig = (
 	const shirtTop = neckY + 8;
 	const shirtBottom = 430;
 	const bodyW = 130;
-	const arms = `
-		<path d="M ${cx - bodyW / 2} ${shirtTop + 30} Q ${cx - bodyW / 2 - 34} ${shirtTop + 90} ${cx - bodyW / 2 - 26} ${shirtTop + 150}" fill="none" stroke="${skin}" stroke-width="26" stroke-linecap="round"/>
-		<path d="M ${cx + bodyW / 2} ${shirtTop + 30} Q ${cx + bodyW / 2 + 34} ${shirtTop + 90} ${cx + bodyW / 2 + 26} ${shirtTop + 150}" fill="none" stroke="${skin}" stroke-width="26" stroke-linecap="round"/>
-		<circle cx="${cx - bodyW / 2 - 26}" cy="${shirtTop + 152}" r="15" fill="${skin}" ${stroke}/>
-		<circle cx="${cx + bodyW / 2 + 26}" cy="${shirtTop + 152}" r="15" fill="${skin}" ${stroke}/>`;
 	const shirtFill = shirtStriped
 		? `<defs><pattern id="shirtstripes" width="18" height="18" patternUnits="userSpaceOnUse"><rect width="18" height="18" fill="${shirt}"/><rect width="9" height="18" fill="${pants}" opacity="0.55"/></pattern></defs>`
 		: '';
 	const shirtColor = shirtStriped ? 'url(#shirtstripes)' : shirt;
-	const torso = `
+	const torsoInner = `
 		<path d="M ${cx - bodyW / 2} ${shirtTop} L ${cx + bodyW / 2} ${shirtTop} L ${cx + bodyW / 2 - 12} ${shirtBottom} L ${cx - bodyW / 2 + 12} ${shirtBottom} Z" fill="${shirtColor}" ${stroke}/>
 		<rect x="${cx - 16}" y="${neckY - 6}" width="32" height="26" rx="8" fill="${skin}" ${stroke}/>`;
-	const legs = `
-		<rect x="${cx - 52}" y="${shirtBottom - 6}" width="44" height="105" rx="14" fill="${pants}" ${stroke}/>
-		<rect x="${cx + 8}" y="${shirtBottom - 6}" width="44" height="105" rx="14" fill="${pants}" ${stroke}/>
-		<ellipse cx="${cx - 32}" cy="545" rx="30" ry="16" fill="#3a3a3a" ${stroke}/>
-		<ellipse cx="${cx + 32}" cy="545" rx="30" ry="16" fill="#3a3a3a" ${stroke}/>`;
 
 	const mouthY = headCY + 62;
 
-	return `<svg viewBox="0 0 400 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cartoon character (${country.name}, ${pose} pose, seed ${seed})">
+	// ---- Rig: named part groups + joint pivots ----
+	const rigManifest = `<!-- RIG {"seed":${seed},"joints":{"head":[${cx},${headCY}],"neck":[${cx},${neckY}],"shoulderL":[${cx - bodyW / 2},${shirtTop + 30}],"shoulderR":[${cx + bodyW / 2},${shirtTop + 30}],"hipL":[${cx - 30},${shirtBottom}],"hipR":[${cx + 30},${shirtBottom}]},"parts":["head","torso","armL","armR","legL","legR"]} -->`;
+	const armL = `<g id="rig-armL" data-pivot="${cx - bodyW / 2},${shirtTop + 30}">
+		<path d="M ${cx - bodyW / 2} ${shirtTop + 30} Q ${cx - bodyW / 2 - 34} ${shirtTop + 90} ${cx - bodyW / 2 - 26} ${shirtTop + 150}" fill="none" stroke="${skin}" stroke-width="26" stroke-linecap="round"/>
+		<circle cx="${cx - bodyW / 2 - 26}" cy="${shirtTop + 152}" r="15" fill="${skin}" ${stroke}/></g>`;
+	const armR = `<g id="rig-armR" data-pivot="${cx + bodyW / 2},${shirtTop + 30}">
+		<path d="M ${cx + bodyW / 2} ${shirtTop + 30} Q ${cx + bodyW / 2 + 34} ${shirtTop + 90} ${cx + bodyW / 2 + 26} ${shirtTop + 150}" fill="none" stroke="${skin}" stroke-width="26" stroke-linecap="round"/>
+		<circle cx="${cx + bodyW / 2 + 26}" cy="${shirtTop + 152}" r="15" fill="${skin}" ${stroke}/></g>`;
+	const legL = `<g id="rig-legL" data-pivot="${cx - 30},${shirtBottom}">
+		<rect x="${cx - 52}" y="${shirtBottom - 6}" width="44" height="105" rx="14" fill="${pants}" ${stroke}/>
+		<ellipse cx="${cx - 32}" cy="545" rx="30" ry="16" fill="#3a3a3a" ${stroke}/></g>`;
+	const legR = `<g id="rig-legR" data-pivot="${cx + 30},${shirtBottom}">
+		<rect x="${cx + 8}" y="${shirtBottom - 6}" width="44" height="105" rx="14" fill="${pants}" ${stroke}/>
+		<ellipse cx="${cx + 32}" cy="545" rx="30" ry="16" fill="#3a3a3a" ${stroke}/></g>`;
+	const headGroup = `<g id="rig-head" data-pivot="${cx},${neckY}">
+${ears}
+<ellipse cx="${cx}" cy="${headCY}" rx="${headRX.toFixed(0)}" ry="${headRY.toFixed(0)}" fill="${skin}" ${stroke}/>
+${hairFront.join('\n')}
+<g id="eyes-group" transform="translate(${faceDX},0)">${eyesInner}</g>
+<g transform="translate(${faceDX},0)">${browsInner}</g>
+<g transform="translate(${faceDX},0)">${nose}</g>
+<g id="mouth-phonemes" transform="translate(${cx + faceDX},${mouthY})"><use href="#viseme-rest" x="0" y="0"/></g>
+</g>`;
+
+	return `${rigManifest}
+<svg viewBox="0 0 400 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cartoon character (${country.name}, ${pose} pose, seed ${seed})">
 <defs>
 <g id="viseme-rest"><path d="M -16 0 Q 0 7 16 0" fill="none" stroke="#5b2b2b" stroke-width="4" stroke-linecap="round"/></g>
 <g id="viseme-A"><ellipse cx="0" cy="2" rx="13" ry="17" fill="#7a2e2e" stroke="#5b2b2b" stroke-width="3"/></g>
@@ -151,15 +176,11 @@ export const generateCharacterRig = (
 ${shirtFill}
 </defs>
 ${hairBack.join('\n')}
-${legs}
-${arms}
-${torso}
-${ears}
-<ellipse cx="${cx}" cy="${headCY}" rx="${headRX.toFixed(0)}" ry="${headRY.toFixed(0)}" fill="${skin}" ${stroke}/>
-${hairFront.join('\n')}
-<g id="eyes-group" transform="translate(${faceDX},0)">${eyesInner}</g>
-<g transform="translate(${faceDX},0)">${browsInner}</g>
-<g transform="translate(${faceDX},0)">${nose}</g>
-<g id="mouth-phonemes" transform="translate(${cx + faceDX},${mouthY})"><use href="#viseme-rest" x="0" y="0"/></g>
+${legL}
+${legR}
+${armL}
+${armR}
+<g id="rig-torso">${torsoInner}</g>
+${headGroup}
 </svg>`;
 };
