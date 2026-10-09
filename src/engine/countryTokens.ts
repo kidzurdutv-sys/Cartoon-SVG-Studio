@@ -1,75 +1,67 @@
-export interface CountryConfig {
-  id: string;
-  name: string;
-  skinTone: string;
-  clothingColor1: string;
-  clothingColor2: string;
-  outlineStyle: string;
-  bgColor1: string;
-  bgColor2: string;
-  propMainColor: string;
-  propAccentColor: string;
-}
+import { type StyleToken } from '../types';
 
-export const countryTokens: Record<string, CountryConfig> = {
-  pakistan: {
-    id: 'pakistan',
-    name: 'Pakistan',
-    skinTone: '#b87c4f', // South Asian warm skin tone
-    clothingColor1: '#2e7d32', // Emerald green
-    clothingColor2: '#f5f5f5', // Off-white
-    outlineStyle: 'stroke-width="2" stroke="#1b451d"',
-    bgColor1: '#004d40',
-    bgColor2: '#b2dfdb',
-    propMainColor: '#c5a059', // Brass/Gold
-    propAccentColor: '#795548', // Wood
+export const STYLE_PRESETS: StyleToken[] = [
+  {
+    id: 'western',
+    name: 'Western Cartoon',
+    description: 'Thick lines, bold colors, round features (Disney/Pixar style)',
+    colorPalette: ['#1A1A1A', '#FF4B4B', '#4B8BFF', '#FFD166', '#06D6A0'],
+    lineStyle: 'thick',
+    featureStyle: 'round',
+    promptModifier: 'in a 2D Western cartoon style, thick outlines, bold colors, round features, like classic Disney or early Pixar concepts, flat vector shading'
   },
-  japan: {
-    id: 'japan',
-    name: 'Japan',
-    skinTone: '#ffdfc4', // Fair skin tone
-    clothingColor1: '#b71c1c', // Crimson red
-    clothingColor2: '#212121', // Dark charcoal
-    outlineStyle: 'stroke-width="3" stroke="#000000" stroke-linecap="round"', // Anime-cell style
-    bgColor1: '#311b92', // Deep purple
-    bgColor2: '#f48fb1', // Cherry blossom pink
-    propMainColor: '#e0e0e0', // Steel
-    propAccentColor: '#d32f2f', // Red accents
+  {
+    id: 'japanese',
+    name: 'Anime / Manga',
+    description: 'Thin lines, pastel colors, large eyes (Japanese anime style)',
+    colorPalette: ['#2C3E50', '#FF9F43', '#EE5A24', '#0abde3', '#10ac84'],
+    lineStyle: 'thin',
+    featureStyle: 'sharp',
+    promptModifier: 'in a modern Japanese anime style, very thin sharp linework, pastel bright colors, large expressive anime eyes, studio ghibli inspired vectors'
   },
-  usa: {
-    id: 'usa',
-    name: 'USA',
-    skinTone: '#e8b89e', // Medium light skin tone
-    clothingColor1: '#1976d2', // Denim blue
-    clothingColor2: '#ffffff', // White
-    outlineStyle: 'stroke-width="2" stroke="#2c3e50"',
-    bgColor1: '#0d47a1', // Navy
-    bgColor2: '#ffc107', // Amber
-    propMainColor: '#90a4ae', // Aluminum
-    propAccentColor: '#37474f', // Dark grey
+  {
+    id: 'south-asian',
+    name: 'South Asian',
+    description: 'Medium lines, warm colors, detailed patterns (Indian animation style)',
+    colorPalette: ['#3E2723', '#E65100', '#FBC02D', '#1B5E20', '#B71C1C'],
+    lineStyle: 'thin',
+    featureStyle: 'round',
+    promptModifier: 'in a South Asian animation style, warm earthy vibrant colors, intricate patterns, stylized cultural attire, medium linework'
   },
-  egypt: {
-    id: 'egypt',
-    name: 'Egypt',
-    skinTone: '#a66a45', // Bronze skin tone
-    clothingColor1: '#fbc02d', // Gold
-    clothingColor2: '#ffffff', // White linen
-    outlineStyle: 'stroke-width="2" stroke="#4e342e"',
-    bgColor1: '#e65100', // Desert sunset orange
-    bgColor2: '#ffd54f', // Sand yellow
-    propMainColor: '#fbc02d', // Gold
-    propAccentColor: '#00bcd4', // Turquoise
+  {
+    id: 'european',
+    name: 'European Graphic',
+    description: 'Thin lines, muted colors, angular features (European cartoon style)',
+    colorPalette: ['#2D3436', '#D63031', '#0984E3', '#FDCB6E', '#00B894'],
+    lineStyle: 'thin',
+    featureStyle: 'angular',
+    promptModifier: 'in a classic European graphic novel style, angular features, moody muted colors, thin precise linework, tin-tin or moebius inspired vectors'
   },
-  mexico: {
-    id: 'mexico',
-    name: 'Mexico',
-    skinTone: '#c17a52', // Warm tan
-    clothingColor1: '#d32f2f', // Vibrant red
-    clothingColor2: '#4caf50', // Vibrant green
-    outlineStyle: 'stroke-width="2" stroke="#3e2723"',
-    bgColor1: '#880e4f', // Deep magenta
-    bgColor2: '#ff9800', // Vibrant orange
-    propMainColor: '#795548', // Terracotta
-    propAccentColor: '#cddc39', // Lime
+  {
+    id: 'pixel',
+    name: '8-Bit Retro',
+    description: 'No lines, blocky shapes, limited palette (8-bit style)',
+    colorPalette: ['#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF'],
+    lineStyle: 'none',
+    featureStyle: 'angular',
+    promptModifier: 'in an 8-bit retro pixel art vector style, blocky rigid square shapes, extremely limited color palette, no outlines, classic arcade look'
+  },
+  {
+    id: 'sketch',
+    name: 'Pencil Sketch',
+    description: 'Rough lines, pencil-like, monochrome (hand-drawn style)',
+    colorPalette: ['#111111', '#333333', '#666666', '#999999', '#CCCCCC'],
+    lineStyle: 'thick',
+    featureStyle: 'sharp',
+    promptModifier: 'in a rough monochrome pencil sketch style, messy overlapping lines, grayscale only, hand-drawn aesthetic vector shapes'
   }
+];
+
+export const getStylePromptModifier = (styleId: string): string => {
+  const style = STYLE_PRESETS.find(s => s.id === styleId);
+  return style ? style.promptModifier : STYLE_PRESETS[0].promptModifier;
+};
+
+export const getStyleById = (id: string): StyleToken | undefined => {
+  return STYLE_PRESETS.find(s => s.id === id);
 };

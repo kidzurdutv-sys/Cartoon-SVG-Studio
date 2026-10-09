@@ -1,32 +1,47 @@
-# React + TypeScript + Vite
+# Cartoon SVG Studio 🎨✨
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+An intelligent, AI-powered web application that generates production-ready, highly structured SVG assets for characters, environments, and props using Google's Gemini 2.0 Flash API.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **🎨 Multi-Domain Generation**: Auto-generate character rigs, parallax-ready backgrounds, and distinct props using simple prompts.
+- **🌍 Cultural Styling Matrices**: Apply dynamic styling configurations across multiple global aesthetics (e.g., Japanese Anime, Western Cartoon, South Asian).
+- **💀 Advanced Auto-Rigging Engine**: The character engine parses geometry, calculates intersection bounds, and constructs a workable bone hierarchy for animation.
+- **🎬 Keyframe Animation Preview**: Inject rotational attributes interactively along the bone hierarchy right inside the canvas.
+- **📦 Zero-Dependency Asset Export**: Export your finalized work as flat SVGs or ZIP-archived project setups.
 
-## React Compiler
+## Setup Instructions
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Clone the repository.
+2. Install dependencies:
+   \`\`\`bash
+   npm install
+   \`\`\`
+3. Provide your Google Gemini API Key:
+   - Go to [Google AI Studio](https://aistudio.google.com/) and create a free API key.
+   - Create a \`.env\` file based on the \`.env.example\`:
+     \`\`\`env
+     VITE_GEMINI_API_KEY=your-gemini-api-key-here
+     \`\`\`
+4. Run the local development server:
+   \`\`\`bash
+   npm run dev
+   \`\`\`
 
-## Expanding the Oxlint configuration
+## Architecture Diagram
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+\`\`\`text
+[ UI Layer - React/Tailwind ] <==> [ Zustand Store ] <==> [ Services Layer ]
+       |                                |                        |
+[ Canvas / Sidebar ]             [ Global State ]        [ Gemini 2.0 API ]
+       |
+[ Engines Layer ]
+  - Character Auto-Rigging (Math Bound Parsing)
+  - Environment Z-Layering (Parallax Sorting)
+  - Prop Generation
+\`\`\`
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Roadmap
+- SMIL Native SVG Export (Full Animation embedded in a single `.svg` file).
+- Advanced Path-Morphing for Facial Visemes.
+- WebGL implementation for high-fidelity performance.
