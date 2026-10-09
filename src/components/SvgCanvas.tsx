@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useStudioStore } from '../store/studioStore';
 import { applyParallax, parseEnvironmentSVG } from '../engine/environmentRig';
 import { serializeProps } from '../engine/propRig';
 import { getBoneTransform } from '../engine/characterRig';
 
-export const SvgCanvas: React.FC = () => {
+export const SvgCanvas = () => {
   const {
     canvasSVG,
     environmentSVG,
@@ -41,7 +41,7 @@ export const SvgCanvas: React.FC = () => {
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 1 || e.button === 0 && e.target === containerRef.current) { // Middle click or bg click
+    if (e.button === 1 || (e.button === 0 && e.target === containerRef.current)) { // Middle click or bg click
       setIsDragging(true);
       setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
       selectElement(null);
@@ -68,6 +68,47 @@ export const SvgCanvas: React.FC = () => {
     setIsDragging(false);
   };
 
+
+  // Animation loop state
+  const requestRef = useRef<number>(0);
+  const startTimeRef = useRef<number>(0);
+  const [currentTime, setCurrentTime] = useState(0);
+
+  // Expose play state from somewhere or just run loop if in animate tab
+  // To keep it simple without drastically changing the store, we will
+  // animate continuously if there are >1 keyframes and we are in the animate tab.
+  // Real implementation would sync with SidebarControls play state via store.
+
+  useEffect(() => {
+    if (activeTab === 'animate' && animationKeyframes.length > 1) {
+      const duration = animationKeyframes[animationKeyframes.length - 1].time; // in seconds
+      if (duration <= 0) return;
+
+      const animate = (time: number) => {
+        if (!startTimeRef.current) startTimeRef.current = time;
+        let progress = (time - startTimeRef.current) / 1000; // seconds
+
+        // Loop
+        if (progress > duration) {
+           startTimeRef.current = time;
+           progress = 0;
+        }
+
+        setCurrentTime(progress);
+        requestRef.current = requestAnimationFrame(animate);
+      };
+
+      requestRef.current = requestAnimationFrame(animate);
+    } else {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      setCurrentTime(0);
+    }
+
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [activeTab, animationKeyframes]);
+
   // Compose Final SVG
   let composedSVG = '';
 
@@ -77,33 +118,70 @@ export const SvgCanvas: React.FC = () => {
   }
 
   if (canvasSVG) {
-      // Very basic rig transform injection for UI preview
-      let charStr = canvasSVG;
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(canvasSVG, "image/svg+xml");
+
       if (activeTab === 'animate' && rigData && animationKeyframes.length > 0) {
-          const kf = animationKeyframes[animationKeyframes.length - 1]; // Use last frame for preview
+          // Interpolate or use static
+          let currentValues: Record<string, number> = {};
+
+          if (animationKeyframes.length === 1) {
+             currentValues = animationKeyframes[0].boneValues;
+          } else {
+             // Find surrounding keyframes
+             const kfEndIdx = animationKeyframes.findIndex(kf => kf.time >= currentTime);
+             const kfEnd = kfEndIdx !== -1 ? animationKeyframes[kfEndIdx] : animationKeyframes[animationKeyframes.length - 1];
+             const kfStart = kfEndIdx > 0 ? animationKeyframes[kfEndIdx - 1] : animationKeyframes[0];
+
+             if (kfStart === kfEnd) {
+                 currentValues = kfStart.boneValues;
+             } else {
+                 // Linear interpolation
+                 const t = (currentTime - kfStart.time) / (kfEnd.time - kfStart.time);
+                 rigData.bones.forEach(b => {
+                     const startVal = kfStart.boneValues[b.id] || 0;
+                     const endVal = kfEnd.boneValues[b.id] || 0;
+                     currentValues[b.id] = startVal + (endVal - startVal) * t;
+                 });
+             }
+          }
+
           rigData.bones.forEach(b => {
-              const transformStr = getBoneTransform(b.id, rigData, kf.boneValues);
+              const transformStr = getBoneTransform(b.id, rigData, currentValues);
               if (transformStr) {
-                  // Find the group and inject transform
-                  const regex = new RegExp(`<g[^>]*id="${b.name}"[^>]*>`, 'g');
-                  charStr = charStr.replace(regex, (match) => {
-                      if (match.includes('transform=')) {
-                           return match.replace(/transform="([^"]*)"/, `transform="$1 ${transformStr}"`);
-                      }
-                      return match.replace('<g', `<g transform="${transformStr}"`);
-                  });
+                  const targetElement = doc.getElementById(b.name);
+                  if (targetElement) {
+                      const existingTransform = targetElement.getAttribute('transform') || '';
+                      // Clear previous rotational transforms added by us so they don't stack infinitely if parsed repeatedly
+                      const cleanTransform = existingTransform.replace(/rotate\([^)]+\)/g, '').trim();
+                      targetElement.setAttribute('transform', `${cleanTransform} ${transformStr}`.trim());
+                  }
               }
           });
       }
-
       // Inject bounding box highlights if selected
       if (selectedElementId && activeTab === 'rig') {
-         // Hacky highlight for demo via regex injection
-         const regex = new RegExp(`<g[^>]*id="${selectedElementId.replace('bone-', '')}"[^>]*>`, 'g');
-         charStr = charStr.replace(regex, (match) => match.replace('<g', `<g class="outline outline-2 outline-indigo-500 drop-shadow-lg"`));
+         const targetId = selectedElementId.replace('bone-', 'rig-'); // Mapping store boneId to actual DOM groupId
+         const targetElement = doc.getElementById(targetId);
+         if (targetElement) {
+             const existingClass = targetElement.getAttribute('class') || '';
+             targetElement.setAttribute('class', `${existingClass} outline outline-2 outline-indigo-500 drop-shadow-lg`);
+         }
       }
 
-      composedSVG += charStr;
+      // Serialize back to string
+      const serializer = new XMLSerializer();
+      let modifiedSVGStr = '';
+
+      // Extract just the inner parts or the full root
+      const svgRoot = doc.querySelector('svg');
+      if (svgRoot) {
+          modifiedSVGStr = serializer.serializeToString(svgRoot);
+      } else {
+          modifiedSVGStr = canvasSVG; // fallback
+      }
+
+      composedSVG += modifiedSVGStr;
   }
 
   if (props.length > 0) {

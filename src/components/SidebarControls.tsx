@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useStudioStore } from '../store/studioStore';
-import { generateCartoonSVG, generateEnvironmentSVG, generatePropSVG } from '../services/localAIService';
+import { generateCartoonSVG, generateEnvironmentSVG, generatePropSVG } from '../services/geminiService';
 import { STYLE_PRESETS, getStylePromptModifier } from '../engine/countryTokens';
 import { autoRigCharacter, validateRig } from '../engine/characterRig';
 import { createProp } from '../engine/propRig';
-import { type Bone, type Keyframe } from '../types';
+import {  } from '../types';
 
 export const SidebarControls: React.FC = () => {
   const store = useStudioStore();
@@ -200,7 +200,7 @@ const RigPanel = () => {
 
             <div className="h-48 overflow-y-auto custom-scrollbar pr-2">
               <ul className="text-xs text-gray-400 space-y-1">
-                {store.rigData.bones.map((b: Bone) => (
+                {store.rigData.bones.map(b => (
                   <li
                     key={b.id}
                     className={`p-1 rounded cursor-pointer ${store.selectedElementId === b.id ? 'bg-indigo-500/20 text-indigo-300' : 'hover:bg-gray-700'}`}
@@ -227,15 +227,20 @@ const RigPanel = () => {
   );
 };
 
+
+
 const AnimatePanel = () => {
   const store = useStudioStore();
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = React.useState(1);
+  const [isLooping, setIsLooping] = React.useState(true);
 
   const handleAddKeyframe = () => {
     const nextTime = store.animationKeyframes.length > 0
       ? store.animationKeyframes[store.animationKeyframes.length-1].time + 1
       : 0;
 
-    // For demo, we just copy the previous frame's values if they exist, or start fresh
+    // Copy the previous frame's values if they exist, or start fresh
     const lastValues = store.animationKeyframes.length > 0
       ? store.animationKeyframes[store.animationKeyframes.length-1].boneValues
       : {};
@@ -247,16 +252,40 @@ const AnimatePanel = () => {
   return (
     <div className="space-y-4">
       <div className="flex gap-2 mb-4">
-        <button className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-1.5 rounded text-xs font-medium">Play</button>
-        <button className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-1.5 rounded text-xs">Stop</button>
+        <button
+          onClick={() => {
+            if (store.animationKeyframes.length > 1) setIsPlaying(!isPlaying);
+          }}
+          className={`flex-1 ${isPlaying ? 'bg-amber-600 hover:bg-amber-500' : 'bg-indigo-600 hover:bg-indigo-500'} text-white py-1.5 rounded text-xs font-medium`}
+        >
+          {isPlaying ? 'Pause' : 'Play'}
+        </button>
+        <button
+          onClick={() => setIsPlaying(false)}
+          className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-1.5 rounded text-xs"
+        >
+          Stop
+        </button>
+      </div>
+
+      {/* Playback Controls */}
+      <div className="bg-gray-800 p-3 rounded border border-gray-700 space-y-3">
+         <div className="flex justify-between items-center text-xs text-gray-400">
+           <span>Speed: {playbackSpeed}x</span>
+           <input type="range" min="0.25" max="4" step="0.25" value={playbackSpeed} onChange={e => setPlaybackSpeed(parseFloat(e.target.value))} className="w-24 accent-indigo-500" />
+         </div>
+         <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+           <input type="checkbox" checked={isLooping} onChange={e => setIsLooping(e.target.checked)} className="accent-indigo-500" />
+           Loop Animation
+         </label>
       </div>
 
       <button onClick={handleAddKeyframe} className="w-full border border-dashed border-gray-600 hover:border-indigo-400 text-gray-400 hover:text-indigo-400 py-2 rounded text-xs">
         + Add Keyframe
       </button>
 
-      <div className="space-y-2">
-        {store.animationKeyframes.map((kf: Keyframe, i: number) => (
+      <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar pr-1">
+        {store.animationKeyframes.map((kf, i) => (
            <div key={kf.id} className="flex justify-between items-center bg-gray-800 p-2 rounded border border-gray-700">
              <span className="text-xs text-gray-300">Frame {i} (T: {kf.time}s)</span>
              <button onClick={() => store.deleteKeyframe(kf.id)} className="text-red-400 hover:text-red-300 text-xs">Del</button>
@@ -264,25 +293,32 @@ const AnimatePanel = () => {
         ))}
       </div>
 
-      {/* Example Rotation Slider if a bone is selected */}
-      {store.selectedElementId && store.animationKeyframes.length > 0 && (
-         <div className="bg-gray-800 p-3 rounded border border-gray-700 mt-4">
-            <p className="text-xs text-gray-400 mb-2">Rotate {store.selectedElementId}</p>
-            <input
-              type="range" min="-180" max="180" defaultValue="0"
-              className="w-full"
-              onChange={(e) => {
-                 const currentKf = store.animationKeyframes[store.animationKeyframes.length-1];
-                 const updatedValues = { ...currentKf.boneValues, [store.selectedElementId!]: parseInt(e.target.value) };
-                 store.updateKeyframe(currentKf.id, { boneValues: updatedValues });
-              }}
-            />
+      {/* Rotation Sliders for all bones in the rig */}
+      {store.rigData && store.animationKeyframes.length > 0 && (
+         <div className="bg-gray-800 p-3 rounded border border-gray-700 mt-4 space-y-3">
+            <h3 className="text-xs font-semibold text-gray-300 border-b border-gray-700 pb-2">Bone Rotations (Last Frame)</h3>
+            <div className="max-h-64 overflow-y-auto custom-scrollbar pr-2 space-y-3">
+              {store.rigData.bones.map(b => (
+                <div key={b.id}>
+                  <p className="text-[10px] text-gray-400 mb-1">{b.name.replace('rig-', '')}</p>
+                  <input
+                    type="range" min="-180" max="180"
+                    value={store.animationKeyframes[store.animationKeyframes.length-1].boneValues[b.id] || 0}
+                    className="w-full accent-indigo-500 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                    onChange={(e) => {
+                      const currentKf = store.animationKeyframes[store.animationKeyframes.length-1];
+                      const updatedValues = { ...currentKf.boneValues, [b.id]: parseInt(e.target.value) };
+                      store.updateKeyframe(currentKf.id, { boneValues: updatedValues });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
          </div>
       )}
     </div>
   );
 };
-
 const ExportPanel = () => {
   const [format, setFormat] = useState('svg');
 
