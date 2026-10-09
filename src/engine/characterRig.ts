@@ -44,10 +44,8 @@ export const generateCharacterRig = (
 			x += w;
 		}
 		let d = `M 112 160 `;
-		let px = 112;
 		for (const [tx, ty] of tops) {
 			d += `L ${tx.toFixed(0)} ${ty.toFixed(0)} L ${(tx + 12 + rand() * 8).toFixed(0)} ${(108 + rand() * 14).toFixed(0)} `;
-			px = tx;
 		}
 		d += `L 290 160 Q 200 126 112 160 Z`;
 		hairBack.push(`<path d="${d}" fill="${hairColor}" ${stroke}/>`);
